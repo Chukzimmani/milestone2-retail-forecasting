@@ -46,26 +46,6 @@ Retailers often overstock or understock due to poor demand forecasts. This proje
 ### 3. Simple Regression (Inventory Only)
 - R²: 0.40
 - Shows Inventory Level is the most important single driver of sales
-
----
-
-## 📂 Repository Structure
-
-```
-retail-forecasting/
-├── data/
-│   └── retail_store_inventory.csv
-├── notebooks/
-│   └── final_forecasting_analysis_notebook.ipynb
-├── outputs/
-│   ├── sarimax_vs_original_forecast_chart.png
-│   ├── feature_importance_rf.png
-│   ├── inventory_vs_sales_scatter.png
-│   └── actual_vs_predicted_lr.png
-├── milestone2_presentation.pptx
-├── README.md
-```
-
 ---
 
 ## 💡 Business Value
