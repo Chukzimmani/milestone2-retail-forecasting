@@ -3,17 +3,15 @@ import streamlit as st
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
-from datetime import timedelta
 from statsmodels.tsa.statespace.sarimax import SARIMAXResults
 
-# Load model and data
+# Load the trained SARIMAX model and dataset
 model = SARIMAXResults.load("sarimax_model.sm")
-
 data = pd.read_csv("retail_store_inventory_preprocessed.csv")
 data['Date'] = pd.to_datetime(data['Date'])
 
-# Preprocess data for forecasting
-daily_df = data.groupby('Date').agg({
+# Preprocess the data (grouped by date)
+daily_df = data.groupby(['Date', 'Region']).agg({
     'Units Sold': 'sum',
     'Inventory Level': 'mean',
     'Price': 'mean',
@@ -24,40 +22,52 @@ daily_df = data.groupby('Date').agg({
     'Seasonality': 'mean'
 }).reset_index()
 
-daily_df.set_index('Date', inplace=True)
+st.title("Retail Demand Forecasting with SARIMAX")
+st.write("Forecast daily units sold by selecting region and discount level. Confidence intervals included.")
 
-# Forecasting input
-st.title("Retail Demand Forecasting")
-st.write("Forecast daily units sold using SARIMAX with exogenous features.")
+# Sidebar controls
+region = st.selectbox("Select Region", sorted(daily_df['Region'].unique()))
+discount_input = st.slider("Select Forecast Discount (%)", 0, 50, 10)
+n_days = st.slider("Number of days to forecast", 7, 60, 30)
 
-# Forecast window
-n_days = st.slider("Select number of days to forecast:", min_value=7, max_value=60, value=30)
+# Filter data based on region
+region_df = daily_df[daily_df['Region'] == region].copy()
 
-# Prepare input
-train = daily_df.iloc[:-n_days]
-test = daily_df.iloc[-n_days:]
+# Override discount to simulate what-if scenario
+region_df['Discount'] = discount_input
+region_df.set_index('Date', inplace=True)
 
-endog_test = test['Units Sold']
-exog_test = test.drop(columns=['Units Sold'])
+# Forecasting function
+def forecast_demand(model, df, days):
+    test_df = df.iloc[-days:]
+    endog = test_df['Units Sold']
+    exog = test_df.drop(columns=['Units Sold', 'Region'])
 
-# Forecast
-forecast = model.predict(start=test.index[0], end=test.index[-1], exog=exog_test)
+    forecast_result = model.get_forecast(steps=days, exog=exog)
+    forecast_mean = forecast_result.predicted_mean
+    conf_int = forecast_result.conf_int()
 
-# Plot
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(test.index, endog_test, label='Actual')
-ax.plot(test.index, forecast, label='Forecast', linestyle='--')
-ax.set_title("Forecast vs Actual")
-ax.set_xlabel("Date")
-ax.set_ylabel("Units Sold")
-ax.legend()
-st.pyplot(fig)
+    return endog, forecast_mean, conf_int
 
-# Metrics
-st.subheader("Forecast Accuracy (Last {} Days)".format(n_days))
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import numpy as np
-mae = mean_absolute_error(endog_test, forecast)
-rmse = np.sqrt(mean_squared_error(endog_test, forecast))
-st.write(f"**MAE**: {mae:.2f}")
-st.write(f"**RMSE**: {rmse:.2f}")
+# Run forecast
+try:
+    actual, forecast, interval = forecast_demand(model, region_df, n_days)
+
+    # Plot forecast
+    st.subheader("Forecast vs Actual with 95% Confidence Interval")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(actual.index, actual, label='Actual')
+    ax.plot(actual.index, forecast, label='Forecast', linestyle='--')
+    ax.fill_between(actual.index, interval.iloc[:, 0], interval.iloc[:, 1], color='gray', alpha=0.3)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Units Sold")
+    ax.set_title("Demand Forecast")
+    ax.legend()
+    st.pyplot(fig)
+
+    # Metrics
+    st.subheader("Prediction Range")
+    st.write(f"From **{int(forecast.min())}** to **{int(forecast.max())}** units expected over the next {n_days} days.")
+
+except Exception as e:
+    st.error(f"Forecast failed: {str(e)}")
