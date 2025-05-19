@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 
 # Load the model
-model = joblib.load("linear_regression_model_v2.pkl")
+model = joblib.load("model.pkl")
 
 # Title
 st.title("Retail Demand Prediction using Linear Regression")
